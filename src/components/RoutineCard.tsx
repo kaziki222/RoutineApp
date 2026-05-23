@@ -167,6 +167,10 @@ export function RoutineCard({
           </div>
         </header>
 
+        {routine.description && (
+          <p className="card__desc">{routine.description}</p>
+        )}
+
         <footer className="card__footer">
           <button
             type="button"
