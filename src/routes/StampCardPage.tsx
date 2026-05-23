@@ -1,14 +1,12 @@
 import { Calendar } from '../components/Calendar';
-import { useDailyState } from '../hooks/useDailyState';
-import { useRoutines } from '../hooks/useRoutines';
+import { useHistory } from '../hooks/useHistory';
 
 export function StampCardPage() {
-  const { routines } = useRoutines();
-  const { stamps } = useDailyState(routines.length);
+  const { stamps } = useHistory();
 
   return (
     <div className="page page--stamps">
-      <h1 className="page__title">スタンプカード</h1>
+      <h1 className="page__title">Stamp Card</h1>
       <Calendar stamps={stamps} />
     </div>
   );

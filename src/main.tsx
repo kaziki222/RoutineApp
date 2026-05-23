@@ -2,11 +2,14 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
 import { App } from './App';
+import { migrateLegacyDaily } from './lib/storage';
 import { AddRoutinePage } from './routes/AddRoutinePage';
 import { EditRoutinePage } from './routes/EditRoutinePage';
 import { HomePage } from './routes/HomePage';
 import { StampCardPage } from './routes/StampCardPage';
 import './index.css';
+
+migrateLegacyDaily();
 
 const router = createBrowserRouter([
   {

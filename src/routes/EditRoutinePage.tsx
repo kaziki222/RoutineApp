@@ -1,14 +1,14 @@
 import { ChevronLeft } from 'lucide-react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { RoutineForm } from '../components/RoutineForm';
-import { useDailyState } from '../hooks/useDailyState';
+import { useHistory } from '../hooks/useHistory';
 import { useRoutines } from '../hooks/useRoutines';
 
 export function EditRoutinePage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
-  const { routines, updateRoutine, removeRoutine, getRoutine } = useRoutines();
-  const { removeRoutineFromDaily } = useDailyState(routines.length);
+  const { updateRoutine, removeRoutine, getRoutine } = useRoutines();
+  const { removeRoutineFromHistory } = useHistory();
 
   const routine = getRoutine(id);
   if (!routine) return <Navigate to="/" replace />;
@@ -35,7 +35,7 @@ export function EditRoutinePage() {
         onCancel={() => navigate('/')}
         onDelete={() => {
           removeRoutine(id);
-          removeRoutineFromDaily(id);
+          removeRoutineFromHistory(id);
           navigate('/');
         }}
       />

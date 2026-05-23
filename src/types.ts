@@ -6,9 +6,6 @@ export type Routine = {
   createdAt: string;
 };
 
-export type DailyState = {
-  date: string;
-  completedRoutineIds: string[];
-};
+export type CompletionHistory = Record<string, string[]>;
 
 export type RoutineInput = Pick<Routine, 'title' | 'description' | 'url'>;

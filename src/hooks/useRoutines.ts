@@ -58,5 +58,16 @@ export function useRoutines() {
     return loadRoutines().find((r) => r.id === id);
   }, []);
 
-  return { routines, addRoutine, updateRoutine, removeRoutine, getRoutine };
+  const moveRoutine = useCallback((id: string, direction: 'up' | 'down') => {
+    const current = loadRoutines();
+    const idx = current.findIndex((r) => r.id === id);
+    if (idx < 0) return;
+    const target = direction === 'up' ? idx - 1 : idx + 1;
+    if (target < 0 || target >= current.length) return;
+    const next = [...current];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    writeJSON(STORAGE_KEYS.routines, next);
+  }, []);
+
+  return { routines, addRoutine, updateRoutine, removeRoutine, getRoutine, moveRoutine };
 }

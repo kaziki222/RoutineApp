@@ -1,6 +1,7 @@
 export const STORAGE_KEYS = {
   routines: 'routine-app:routines',
-  daily: 'routine-app:daily',
+  daily: 'routine-app:daily', // legacy, read only during migration
+  history: 'routine-app:history',
   stamps: 'routine-app:stamps',
 } as const;
 
@@ -33,4 +34,33 @@ export function subscribeStorage(listener: () => void): () => void {
     window.removeEventListener('storage', handler);
     window.removeEventListener('routine-app:storage', handler);
   };
+}
+
+/**
+ * Migrate the legacy `routine-app:daily` (today-only) into the new
+ * `routine-app:history` (per-day map). Idempotent and safe to call once on boot.
+ */
+export function migrateLegacyDaily(): void {
+  try {
+    const hasHistory = window.localStorage.getItem(STORAGE_KEYS.history) !== null;
+    const legacyRaw = window.localStorage.getItem(STORAGE_KEYS.daily);
+    if (!legacyRaw) return;
+
+    if (!hasHistory) {
+      const legacy = JSON.parse(legacyRaw) as { date?: string; completedRoutineIds?: string[] };
+      if (
+        legacy &&
+        typeof legacy.date === 'string' &&
+        Array.isArray(legacy.completedRoutineIds)
+      ) {
+        const history: Record<string, string[]> = {
+          [legacy.date]: legacy.completedRoutineIds,
+        };
+        window.localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(history));
+      }
+    }
+    window.localStorage.removeItem(STORAGE_KEYS.daily);
+  } catch {
+    // Migration is best-effort; never block boot.
+  }
 }
