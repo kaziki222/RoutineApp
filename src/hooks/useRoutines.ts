@@ -71,5 +71,26 @@ export function useRoutines() {
     writeJSON(STORAGE_KEYS.routines, next);
   }, []);
 
-  return { routines, addRoutine, updateRoutine, removeRoutine, getRoutine, moveRoutine };
+  // Move `activeId` to the position currently occupied by `overId` (DnD).
+  const reorderRoutines = useCallback((activeId: string, overId: string) => {
+    if (activeId === overId) return;
+    const current = loadRoutines();
+    const oldIndex = current.findIndex((r) => r.id === activeId);
+    const newIndex = current.findIndex((r) => r.id === overId);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const next = [...current];
+    const [moved] = next.splice(oldIndex, 1);
+    next.splice(newIndex, 0, moved);
+    writeJSON(STORAGE_KEYS.routines, next);
+  }, []);
+
+  return {
+    routines,
+    addRoutine,
+    updateRoutine,
+    removeRoutine,
+    getRoutine,
+    moveRoutine,
+    reorderRoutines,
+  };
 }

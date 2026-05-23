@@ -1,13 +1,5 @@
-import {
-  Check,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  Pause,
-  Pencil,
-  Play,
-  X,
-} from 'lucide-react';
+import { Check, ExternalLink, GripVertical, Pause, Pencil, Play, X } from 'lucide-react';
+import { type CSSProperties, type HTMLAttributes, type Ref } from 'react';
 import { Link } from 'react-router-dom';
 import { formatRemaining } from '../hooks/useTimer';
 import { isSafeHttpUrl } from '../lib/youtube';
@@ -20,32 +12,35 @@ type Props = {
   routine: Routine;
   completed: boolean;
   onToggleComplete: (id: string) => void;
-  isFirst: boolean;
-  isLast: boolean;
-  onMoveUp: (id: string) => void;
-  onMoveDown: (id: string) => void;
   timerState: TimerState;
   timerRemainingMs: number;
   onStartTimer: (id: string, seconds: number) => void;
   onPauseTimer: () => void;
   onResumeTimer: () => void;
   onStopTimer: () => void;
+  // Sortable wiring (provided by SortableRoutineCard)
+  setNodeRef?: Ref<HTMLElement>;
+  style?: CSSProperties;
+  attributes?: HTMLAttributes<HTMLElement>;
+  listeners?: HTMLAttributes<HTMLButtonElement>;
+  isDragging?: boolean;
 };
 
 export function RoutineCard({
   routine,
   completed,
   onToggleComplete,
-  isFirst,
-  isLast,
-  onMoveUp,
-  onMoveDown,
   timerState,
   timerRemainingMs,
   onStartTimer,
   onPauseTimer,
   onResumeTimer,
   onStopTimer,
+  setNodeRef,
+  style,
+  attributes,
+  listeners,
+  isDragging,
 }: Props) {
   const safeUrl = isSafeHttpUrl(routine.url) ? routine.url : null;
   const timerSeconds = routine.timerSeconds ?? 0;
@@ -68,12 +63,13 @@ export function RoutineCard({
     timerState === 'running' && 'card--running',
     timerState === 'paused' && 'card--paused',
     timerState === 'finished' && 'card--finished',
+    isDragging && 'card--dragging',
   ]
     .filter(Boolean)
     .join(' ');
 
   return (
-    <article className={cardClassName}>
+    <article ref={setNodeRef} className={cardClassName} style={style} {...attributes}>
       <button
         type="button"
         className="card__thumb-btn"
@@ -88,24 +84,6 @@ export function RoutineCard({
         <header className="card__header">
           <h2 className="card__title">{routine.title || '(無題のルーティン)'}</h2>
           <div className="card__controls">
-            <button
-              type="button"
-              className="card__reorder"
-              onClick={() => onMoveUp(routine.id)}
-              disabled={isFirst}
-              aria-label={`${routine.title}を上に移動`}
-            >
-              <ChevronUp size={18} />
-            </button>
-            <button
-              type="button"
-              className="card__reorder"
-              onClick={() => onMoveDown(routine.id)}
-              disabled={isLast}
-              aria-label={`${routine.title}を下に移動`}
-            >
-              <ChevronDown size={18} />
-            </button>
             <Link
               to={`/edit/${routine.id}`}
               className="card__edit"
@@ -113,6 +91,14 @@ export function RoutineCard({
             >
               <Pencil size={18} />
             </Link>
+            <button
+              type="button"
+              className="card__drag-handle"
+              aria-label={`${routine.title}を並べ替え（ドラッグ）`}
+              {...(listeners ?? {})}
+            >
+              <GripVertical size={18} />
+            </button>
           </div>
         </header>
 

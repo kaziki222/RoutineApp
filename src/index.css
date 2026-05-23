@@ -169,7 +169,7 @@ img {
   flex-shrink: 0;
 }
 
-.card__reorder {
+.card__drag-handle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -178,16 +178,17 @@ img {
   border-radius: 6px;
   color: var(--muted);
   background: transparent;
+  cursor: grab;
+  touch-action: none;
 }
 
-.card__reorder:hover:not(:disabled) {
+.card__drag-handle:hover {
   color: var(--text);
   background: var(--bg);
 }
 
-.card__reorder:disabled {
-  opacity: 0.25;
-  cursor: default;
+.card__drag-handle:active {
+  cursor: grabbing;
 }
 
 .card__edit {
@@ -422,6 +423,11 @@ img {
 
 .card--finished {
   box-shadow: 0 0 0 2px #16a34a, var(--shadow);
+}
+
+.card--dragging {
+  cursor: grabbing;
+  box-shadow: 0 12px 28px rgba(64, 56, 51, 0.18);
 }
 
 /* Form: timer fieldset */
