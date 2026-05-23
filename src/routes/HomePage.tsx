@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { RoutineCard } from '../components/RoutineCard';
+import { RoutineCard, type TimerState } from '../components/RoutineCard';
 import { WeekSchedule } from '../components/WeekSchedule';
 import { useHistory } from '../hooks/useHistory';
 import { useRoutines } from '../hooks/useRoutines';
@@ -16,7 +16,7 @@ function formatJP(date: string): string {
 export function HomePage() {
   const { routines, moveRoutine } = useRoutines();
   const { history, toggleComplete } = useHistory();
-  const { activeTimer, remainingMs, startTimer, stopTimer } = useTimer();
+  const { activeTimer, remainingMs, startTimer, pauseTimer, resumeTimer, stopTimer } = useTimer();
   const [selectedDate, setSelectedDate] = useState<string>(todayKey());
 
   const today = todayKey();
@@ -52,11 +52,15 @@ export function HomePage() {
         <ul className="card-list">
           {routines.map((r, i) => {
             const isActiveTarget = activeTimer?.routineId === r.id;
-            const timerState: 'idle' | 'running' | 'finished' = !isActiveTarget
+            const isPaused =
+              isActiveTarget && typeof activeTimer?.pausedRemainingMs === 'number';
+            const timerState: TimerState = !isActiveTarget
               ? 'idle'
               : activeTimer?.finished
                 ? 'finished'
-                : 'running';
+                : isPaused
+                  ? 'paused'
+                  : 'running';
             return (
               <li key={r.id}>
                 <RoutineCard
@@ -73,6 +77,8 @@ export function HomePage() {
                   timerState={timerState}
                   timerRemainingMs={isActiveTarget ? remainingMs : (r.timerSeconds ?? 0) * 1000}
                   onStartTimer={startTimer}
+                  onPauseTimer={pauseTimer}
+                  onResumeTimer={resumeTimer}
                   onStopTimer={stopTimer}
                 />
               </li>

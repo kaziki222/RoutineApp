@@ -4,8 +4,9 @@ const TIMER_KEY = 'routine-app:activeTimer';
 
 type StoredTimer = {
   routineId: string;
-  endsAt: number; // Date.now() ms
+  endsAt: number; // Date.now() ms target end. Stale when paused.
   totalSeconds: number;
+  pausedRemainingMs?: number; // present => paused; ms remaining at pause moment
 };
 
 type ActiveTimer = StoredTimer & {
@@ -35,7 +36,7 @@ function persistStoredTimer(t: StoredTimer | null): void {
     if (t) window.localStorage.setItem(TIMER_KEY, JSON.stringify(t));
     else window.localStorage.removeItem(TIMER_KEY);
   } catch {
-    // ignore quota/private-mode errors
+    // ignore quota / private-mode errors
   }
 }
 
@@ -44,24 +45,37 @@ export function useTimer() {
     const stored = loadStoredTimer();
     if (!stored) return null;
     const now = Date.now();
+    const isPaused = typeof stored.pausedRemainingMs === 'number';
+    if (isPaused) {
+      return { ...stored, finished: false };
+    }
     const finished = stored.endsAt <= now;
-    // If a stale timer ended long ago (>1 min after end), clear it on boot.
+    // Clear stale finished timer (>1 min after end) on boot.
     if (finished && now - stored.endsAt > 60_000) {
       persistStoredTimer(null);
       return null;
     }
     return { ...stored, finished };
   });
+
   const [remainingMs, setRemainingMs] = useState<number>(() => {
     const stored = loadStoredTimer();
-    return stored ? Math.max(0, stored.endsAt - Date.now()) : 0;
+    if (!stored) return 0;
+    if (typeof stored.pausedRemainingMs === 'number') return stored.pausedRemainingMs;
+    return Math.max(0, stored.endsAt - Date.now());
   });
+
   const alarmFiredRef = useRef(false);
 
   useEffect(() => {
     if (!activeTimer) {
       setRemainingMs(0);
       alarmFiredRef.current = false;
+      return;
+    }
+    // Paused: hold the remaining value and don't tick.
+    if (typeof activeTimer.pausedRemainingMs === 'number') {
+      setRemainingMs(activeTimer.pausedRemainingMs);
       return;
     }
     const tick = () => {
@@ -73,7 +87,7 @@ export function useTimer() {
           try {
             if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
           } catch {
-            // not supported
+            // vibration not supported
           }
         }
         setActiveTimer((prev) => (prev && !prev.finished ? { ...prev, finished: true } : prev));
@@ -99,6 +113,43 @@ export function useTimer() {
     setRemainingMs(seconds * 1000);
   }, []);
 
+  const pauseTimer = useCallback(() => {
+    setActiveTimer((prev) => {
+      if (!prev || prev.finished) return prev;
+      if (typeof prev.pausedRemainingMs === 'number') return prev; // already paused
+      const remaining = Math.max(0, prev.endsAt - Date.now());
+      const next: ActiveTimer = { ...prev, pausedRemainingMs: remaining };
+      persistStoredTimer({
+        routineId: next.routineId,
+        endsAt: next.endsAt,
+        totalSeconds: next.totalSeconds,
+        pausedRemainingMs: remaining,
+      });
+      setRemainingMs(remaining);
+      return next;
+    });
+  }, []);
+
+  const resumeTimer = useCallback(() => {
+    setActiveTimer((prev) => {
+      if (!prev || prev.finished) return prev;
+      if (typeof prev.pausedRemainingMs !== 'number') return prev; // not paused
+      const remaining = prev.pausedRemainingMs;
+      const newEndsAt = Date.now() + remaining;
+      const next: ActiveTimer = {
+        ...prev,
+        endsAt: newEndsAt,
+        pausedRemainingMs: undefined,
+      };
+      persistStoredTimer({
+        routineId: next.routineId,
+        endsAt: newEndsAt,
+        totalSeconds: next.totalSeconds,
+      });
+      return next;
+    });
+  }, []);
+
   const stopTimer = useCallback(() => {
     persistStoredTimer(null);
     setActiveTimer(null);
@@ -106,7 +157,7 @@ export function useTimer() {
     alarmFiredRef.current = false;
   }, []);
 
-  return { activeTimer, remainingMs, startTimer, stopTimer };
+  return { activeTimer, remainingMs, startTimer, pauseTimer, resumeTimer, stopTimer };
 }
 
 export function formatRemaining(ms: number): string {

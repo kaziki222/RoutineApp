@@ -3,15 +3,18 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  Pause,
   Pencil,
   Play,
-  Square,
+  X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatRemaining } from '../hooks/useTimer';
 import { isSafeHttpUrl } from '../lib/youtube';
 import type { Routine } from '../types';
 import { YouTubeThumb } from './YouTubeThumb';
+
+export type TimerState = 'idle' | 'running' | 'paused' | 'finished';
 
 type Props = {
   routine: Routine;
@@ -21,9 +24,11 @@ type Props = {
   isLast: boolean;
   onMoveUp: (id: string) => void;
   onMoveDown: (id: string) => void;
-  timerState: 'idle' | 'running' | 'finished';
+  timerState: TimerState;
   timerRemainingMs: number;
   onStartTimer: (id: string, seconds: number) => void;
+  onPauseTimer: () => void;
+  onResumeTimer: () => void;
   onStopTimer: () => void;
 };
 
@@ -38,6 +43,8 @@ export function RoutineCard({
   timerState,
   timerRemainingMs,
   onStartTimer,
+  onPauseTimer,
+  onResumeTimer,
   onStopTimer,
 }: Props) {
   const safeUrl = isSafeHttpUrl(routine.url) ? routine.url : null;
@@ -53,15 +60,20 @@ export function RoutineCard({
     if (hasTimer) onStartTimer(routine.id, timerSeconds);
   };
 
-  // Format e.g. "3:00" for initial timer display
   const initialLabel = formatRemaining(timerSeconds * 1000);
+  const isActive = timerState === 'running' || timerState === 'paused';
+
+  const cardClassName = [
+    'card',
+    timerState === 'running' && 'card--running',
+    timerState === 'paused' && 'card--paused',
+    timerState === 'finished' && 'card--finished',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <article
-      className={`card${timerState === 'running' ? ' card--running' : ''}${
-        timerState === 'finished' ? ' card--finished' : ''
-      }`}
-    >
+    <article className={cardClassName}>
       <button
         type="button"
         className="card__thumb-btn"
@@ -106,37 +118,62 @@ export function RoutineCard({
 
         <footer className="card__footer">
           {hasTimer ? (
-            timerState === 'running' ? (
-              <button
-                type="button"
-                className="btn-timer btn-timer--running"
-                onClick={onStopTimer}
-                aria-label="タイマーを停止"
-              >
-                <Square size={12} fill="currentColor" />
-                <span className="btn-timer__time">{formatRemaining(timerRemainingMs)}</span>
-              </button>
-            ) : timerState === 'finished' ? (
-              <button
-                type="button"
-                className="btn-timer btn-timer--finished"
-                onClick={onStopTimer}
-                aria-label="タイマー完了。閉じる"
-              >
-                <Check size={12} strokeWidth={3} />
-                <span className="btn-timer__time">完了!</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="btn-timer btn-timer--idle"
-                onClick={handleStart}
-                aria-label={`タイマー${initialLabel}で開始`}
-              >
-                <Play size={12} fill="currentColor" />
-                <span className="btn-timer__time">{initialLabel}</span>
-              </button>
-            )
+            <>
+              {timerState === 'running' && (
+                <button
+                  type="button"
+                  className="btn-timer btn-timer--running"
+                  onClick={onPauseTimer}
+                  aria-label="タイマーを一時停止"
+                >
+                  <Pause size={12} fill="currentColor" />
+                  <span className="btn-timer__time">{formatRemaining(timerRemainingMs)}</span>
+                </button>
+              )}
+              {timerState === 'paused' && (
+                <button
+                  type="button"
+                  className="btn-timer btn-timer--paused"
+                  onClick={onResumeTimer}
+                  aria-label="タイマーを再開"
+                >
+                  <Play size={12} fill="currentColor" />
+                  <span className="btn-timer__time">{formatRemaining(timerRemainingMs)}</span>
+                </button>
+              )}
+              {timerState === 'finished' && (
+                <button
+                  type="button"
+                  className="btn-timer btn-timer--finished"
+                  onClick={onStopTimer}
+                  aria-label="タイマー完了。閉じる"
+                >
+                  <Check size={12} strokeWidth={3} />
+                  <span className="btn-timer__time">完了!</span>
+                </button>
+              )}
+              {timerState === 'idle' && (
+                <button
+                  type="button"
+                  className="btn-timer btn-timer--idle"
+                  onClick={handleStart}
+                  aria-label={`タイマー${initialLabel}で開始`}
+                >
+                  <Play size={12} fill="currentColor" />
+                  <span className="btn-timer__time">{initialLabel}</span>
+                </button>
+              )}
+              {isActive && (
+                <button
+                  type="button"
+                  className="btn-timer-stop"
+                  onClick={onStopTimer}
+                  aria-label="タイマーを停止してリセット"
+                >
+                  <X size={14} strokeWidth={2.5} />
+                </button>
+              )}
+            </>
           ) : (
             safeUrl && (
               <button
