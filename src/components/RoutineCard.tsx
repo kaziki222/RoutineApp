@@ -1,5 +1,14 @@
-import { Check, ChevronDown, ChevronUp, ExternalLink, Pencil } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  Pencil,
+  Play,
+  Square,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { formatRemaining } from '../hooks/useTimer';
 import { isSafeHttpUrl } from '../lib/youtube';
 import type { Routine } from '../types';
 import { YouTubeThumb } from './YouTubeThumb';
@@ -12,6 +21,10 @@ type Props = {
   isLast: boolean;
   onMoveUp: (id: string) => void;
   onMoveDown: (id: string) => void;
+  timerState: 'idle' | 'running' | 'finished';
+  timerRemainingMs: number;
+  onStartTimer: (id: string, seconds: number) => void;
+  onStopTimer: () => void;
 };
 
 export function RoutineCard({
@@ -22,15 +35,33 @@ export function RoutineCard({
   isLast,
   onMoveUp,
   onMoveDown,
+  timerState,
+  timerRemainingMs,
+  onStartTimer,
+  onStopTimer,
 }: Props) {
   const safeUrl = isSafeHttpUrl(routine.url) ? routine.url : null;
+  const timerSeconds = routine.timerSeconds ?? 0;
+  const hasTimer = timerSeconds > 0;
 
   const openVideo = () => {
     if (safeUrl) window.open(safeUrl, '_blank', 'noopener,noreferrer');
   };
 
+  const handleStart = () => {
+    openVideo();
+    if (hasTimer) onStartTimer(routine.id, timerSeconds);
+  };
+
+  // Format e.g. "3:00" for initial timer display
+  const initialLabel = formatRemaining(timerSeconds * 1000);
+
   return (
-    <article className="card">
+    <article
+      className={`card${timerState === 'running' ? ' card--running' : ''}${
+        timerState === 'finished' ? ' card--finished' : ''
+      }`}
+    >
       <button
         type="button"
         className="card__thumb-btn"
@@ -74,15 +105,49 @@ export function RoutineCard({
         </header>
 
         <footer className="card__footer">
-          {safeUrl && (
-            <button
-              type="button"
-              className="btn-link"
-              onClick={openVideo}
-              aria-label="動画URLを開く"
-            >
-              URLへ <ExternalLink size={12} strokeWidth={2.5} />
-            </button>
+          {hasTimer ? (
+            timerState === 'running' ? (
+              <button
+                type="button"
+                className="btn-timer btn-timer--running"
+                onClick={onStopTimer}
+                aria-label="タイマーを停止"
+              >
+                <Square size={12} fill="currentColor" />
+                <span className="btn-timer__time">{formatRemaining(timerRemainingMs)}</span>
+              </button>
+            ) : timerState === 'finished' ? (
+              <button
+                type="button"
+                className="btn-timer btn-timer--finished"
+                onClick={onStopTimer}
+                aria-label="タイマー完了。閉じる"
+              >
+                <Check size={12} strokeWidth={3} />
+                <span className="btn-timer__time">完了!</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn-timer btn-timer--idle"
+                onClick={handleStart}
+                aria-label={`タイマー${initialLabel}で開始`}
+              >
+                <Play size={12} fill="currentColor" />
+                <span className="btn-timer__time">{initialLabel}</span>
+              </button>
+            )
+          ) : (
+            safeUrl && (
+              <button
+                type="button"
+                className="btn-link"
+                onClick={openVideo}
+                aria-label="動画URLを開く"
+              >
+                URLへ <ExternalLink size={12} strokeWidth={2.5} />
+              </button>
+            )
           )}
           <button
             type="button"

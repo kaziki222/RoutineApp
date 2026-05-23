@@ -5,6 +5,7 @@ import { RoutineCard } from '../components/RoutineCard';
 import { WeekSchedule } from '../components/WeekSchedule';
 import { useHistory } from '../hooks/useHistory';
 import { useRoutines } from '../hooks/useRoutines';
+import { useTimer } from '../hooks/useTimer';
 import { todayKey } from '../lib/date';
 
 function formatJP(date: string): string {
@@ -15,6 +16,7 @@ function formatJP(date: string): string {
 export function HomePage() {
   const { routines, moveRoutine } = useRoutines();
   const { history, toggleComplete } = useHistory();
+  const { activeTimer, remainingMs, startTimer, stopTimer } = useTimer();
   const [selectedDate, setSelectedDate] = useState<string>(todayKey());
 
   const today = todayKey();
@@ -48,22 +50,34 @@ export function HomePage() {
         </div>
       ) : (
         <ul className="card-list">
-          {routines.map((r, i) => (
-            <li key={r.id}>
-              <RoutineCard
-                routine={r}
-                completed={completedSet.has(r.id)}
-                onToggleComplete={(id) => {
-                  if (isFuture) return;
-                  toggleComplete(selectedDate, id);
-                }}
-                isFirst={i === 0}
-                isLast={i === routines.length - 1}
-                onMoveUp={(id) => moveRoutine(id, 'up')}
-                onMoveDown={(id) => moveRoutine(id, 'down')}
-              />
-            </li>
-          ))}
+          {routines.map((r, i) => {
+            const isActiveTarget = activeTimer?.routineId === r.id;
+            const timerState: 'idle' | 'running' | 'finished' = !isActiveTarget
+              ? 'idle'
+              : activeTimer?.finished
+                ? 'finished'
+                : 'running';
+            return (
+              <li key={r.id}>
+                <RoutineCard
+                  routine={r}
+                  completed={completedSet.has(r.id)}
+                  onToggleComplete={(id) => {
+                    if (isFuture) return;
+                    toggleComplete(selectedDate, id);
+                  }}
+                  isFirst={i === 0}
+                  isLast={i === routines.length - 1}
+                  onMoveUp={(id) => moveRoutine(id, 'up')}
+                  onMoveDown={(id) => moveRoutine(id, 'down')}
+                  timerState={timerState}
+                  timerRemainingMs={isActiveTarget ? remainingMs : (r.timerSeconds ?? 0) * 1000}
+                  onStartTimer={startTimer}
+                  onStopTimer={stopTimer}
+                />
+              </li>
+            );
+          })}
         </ul>
       )}
 

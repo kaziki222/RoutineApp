@@ -27,6 +27,7 @@ export function EditRoutinePage() {
           title: routine.title,
           description: routine.description,
           url: routine.url,
+          timerSeconds: routine.timerSeconds ?? 0,
         }}
         onSubmit={(input) => {
           updateRoutine(id, input);

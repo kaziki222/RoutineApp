@@ -28,6 +28,7 @@ export function useRoutines() {
       title: input.title.trim(),
       description: input.description.trim(),
       url: input.url.trim(),
+      timerSeconds: input.timerSeconds,
       createdAt: new Date().toISOString(),
     };
     const next = [...loadRoutines(), routine];
@@ -43,6 +44,7 @@ export function useRoutines() {
             title: input.title.trim(),
             description: input.description.trim(),
             url: input.url.trim(),
+            timerSeconds: input.timerSeconds,
           }
         : r
     );

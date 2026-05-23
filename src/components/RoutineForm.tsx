@@ -17,9 +17,18 @@ export function RoutineForm({
   onCancel,
   onDelete,
 }: Props) {
+  const initialTimerSeconds = defaultValues?.timerSeconds ?? 0;
   const [title, setTitle] = useState(defaultValues?.title ?? '');
   const [description, setDescription] = useState(defaultValues?.description ?? '');
   const [url, setUrl] = useState(defaultValues?.url ?? '');
+  const [timerMinutes, setTimerMinutes] = useState<string>(
+    initialTimerSeconds > 0 ? String(Math.floor(initialTimerSeconds / 60)) : ''
+  );
+  const [timerExtraSeconds, setTimerExtraSeconds] = useState<string>(
+    initialTimerSeconds > 0 && initialTimerSeconds % 60 !== 0
+      ? String(initialTimerSeconds % 60)
+      : ''
+  );
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -35,8 +44,18 @@ export function RoutineForm({
       setError('URLは http:// または https:// で始まる必要があります');
       return;
     }
+
+    const minutes = Math.max(0, Math.min(180, Number(timerMinutes) || 0));
+    const seconds = Math.max(0, Math.min(59, Number(timerExtraSeconds) || 0));
+    const totalSeconds = minutes * 60 + seconds;
+
     setError(null);
-    onSubmit({ title: trimmedTitle, description: description.trim(), url: trimmedUrl });
+    onSubmit({
+      title: trimmedTitle,
+      description: description.trim(),
+      url: trimmedUrl,
+      timerSeconds: totalSeconds,
+    });
   };
 
   return (
@@ -80,6 +99,39 @@ export function RoutineForm({
           autoCorrect="off"
         />
       </label>
+
+      <fieldset className="form__field form__timer">
+        <legend className="form__label">タイマー（任意）</legend>
+        <div className="form__timer-row">
+          <label className="form__timer-input">
+            <input
+              type="number"
+              className="form__input"
+              value={timerMinutes}
+              onChange={(e) => setTimerMinutes(e.target.value)}
+              min={0}
+              max={180}
+              inputMode="numeric"
+              placeholder="0"
+            />
+            <span className="form__timer-unit">分</span>
+          </label>
+          <label className="form__timer-input">
+            <input
+              type="number"
+              className="form__input"
+              value={timerExtraSeconds}
+              onChange={(e) => setTimerExtraSeconds(e.target.value)}
+              min={0}
+              max={59}
+              inputMode="numeric"
+              placeholder="0"
+            />
+            <span className="form__timer-unit">秒</span>
+          </label>
+        </div>
+        <p className="form__hint">設定するとカードに「開始」ボタンが出ます</p>
+      </fieldset>
 
       {error && <p className="form__error" role="alert">{error}</p>}
 
