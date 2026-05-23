@@ -7,6 +7,7 @@ import { AddRoutinePage } from './routes/AddRoutinePage';
 import { EditRoutinePage } from './routes/EditRoutinePage';
 import { HomePage } from './routes/HomePage';
 import { StampCardPage } from './routes/StampCardPage';
+import { TimerPage } from './routes/TimerPage';
 import './index.css';
 
 migrateLegacyDaily();
@@ -20,6 +21,7 @@ const router = createBrowserRouter([
       { path: 'add', element: <AddRoutinePage /> },
       { path: 'edit/:id', element: <EditRoutinePage /> },
       { path: 'stamps', element: <StampCardPage /> },
+      { path: 'timer', element: <TimerPage /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

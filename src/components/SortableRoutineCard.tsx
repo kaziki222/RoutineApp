@@ -10,8 +10,6 @@ type Props = {
   timerState: TimerState;
   timerRemainingMs: number;
   onStartTimer: (id: string, seconds: number) => void;
-  onPauseTimer: () => void;
-  onResumeTimer: () => void;
   onStopTimer: () => void;
 };
 

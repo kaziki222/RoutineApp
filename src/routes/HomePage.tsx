@@ -32,7 +32,7 @@ function formatJP(date: string): string {
 export function HomePage() {
   const { routines, reorderRoutines } = useRoutines();
   const { history, toggleComplete } = useHistory();
-  const { activeTimer, remainingMs, startTimer, pauseTimer, resumeTimer, stopTimer } = useTimer();
+  const { activeTimer, remainingMs, startTimer, stopTimer } = useTimer();
   const [selectedDate, setSelectedDate] = useState<string>(todayKey());
 
   const today = todayKey();
@@ -120,8 +120,6 @@ export function HomePage() {
                         isActiveTarget ? remainingMs : (r.timerSeconds ?? 0) * 1000
                       }
                       onStartTimer={startTimer}
-                      onPauseTimer={pauseTimer}
-                      onResumeTimer={resumeTimer}
                       onStopTimer={stopTimer}
                     />
                   </li>

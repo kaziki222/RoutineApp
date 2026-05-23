@@ -1,6 +1,6 @@
 import { Check, GripVertical, Pause, Pencil, Play, X } from 'lucide-react';
 import { type CSSProperties, type HTMLAttributes, type ReactNode, type Ref } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { formatRemaining } from '../hooks/useTimer';
 import { isSafeHttpUrl } from '../lib/youtube';
 import type { Routine } from '../types';
@@ -15,8 +15,6 @@ type Props = {
   timerState: TimerState;
   timerRemainingMs: number;
   onStartTimer: (id: string, seconds: number) => void;
-  onPauseTimer: () => void;
-  onResumeTimer: () => void;
   onStopTimer: () => void;
   // Sortable wiring (provided by SortableRoutineCard)
   setNodeRef?: Ref<HTMLElement>;
@@ -33,8 +31,6 @@ export function RoutineCard({
   timerState,
   timerRemainingMs,
   onStartTimer,
-  onPauseTimer,
-  onResumeTimer,
   onStopTimer,
   setNodeRef,
   style,
@@ -42,6 +38,7 @@ export function RoutineCard({
   listeners,
   isDragging,
 }: Props) {
+  const navigate = useNavigate();
   const safeUrl = isSafeHttpUrl(routine.url) ? routine.url : null;
   const timerSeconds = routine.timerSeconds ?? 0;
   const hasTimer = timerSeconds > 0;
@@ -55,20 +52,14 @@ export function RoutineCard({
   const handleThumbClick = () => {
     if (timerState === 'idle') {
       openVideo();
-      if (hasTimer) onStartTimer(routine.id, timerSeconds);
+      if (hasTimer) {
+        onStartTimer(routine.id, timerSeconds);
+        navigate('/timer');
+      }
       return;
     }
-    if (timerState === 'running') {
-      onPauseTimer();
-      return;
-    }
-    if (timerState === 'paused') {
-      onResumeTimer();
-      return;
-    }
-    if (timerState === 'finished') {
-      onStopTimer();
-    }
+    // Active states (running / paused / finished): jump to dedicated screen.
+    navigate('/timer');
   };
 
   // Icon + time label vary by state
@@ -81,15 +72,15 @@ export function RoutineCard({
   if (timerState === 'running') {
     stateIcon = <Pause size={28} fill="currentColor" />;
     timeLabel = remainingLabel;
-    ariaLabel = `タイマー残り${remainingLabel}。タップで一時停止`;
+    ariaLabel = `タイマー残り${remainingLabel}。タップでタイマー画面を開く`;
   } else if (timerState === 'paused') {
     stateIcon = <Play size={28} fill="currentColor" />;
     timeLabel = remainingLabel;
-    ariaLabel = `一時停止中（残り${remainingLabel}）。タップで再開`;
+    ariaLabel = `一時停止中（残り${remainingLabel}）。タップでタイマー画面を開く`;
   } else if (timerState === 'finished') {
     stateIcon = <Check size={28} strokeWidth={3} />;
     timeLabel = '完了!';
-    ariaLabel = 'タイマー完了。タップで閉じる';
+    ariaLabel = 'タイマー完了。タップで確認画面を開く';
   } else if (isInert) {
     stateIcon = null;
     ariaLabel = '動画もタイマーも未設定';
