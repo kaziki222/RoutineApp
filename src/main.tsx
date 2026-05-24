@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
 import { App } from './App';
-import { migrateLegacyDaily } from './lib/storage';
+import { migrateLegacyDaily, migrateSections } from './lib/storage';
 import { AddRoutinePage } from './routes/AddRoutinePage';
 import { EditRoutinePage } from './routes/EditRoutinePage';
 import { HomePage } from './routes/HomePage';
@@ -11,6 +11,7 @@ import { TimerPage } from './routes/TimerPage';
 import './index.css';
 
 migrateLegacyDaily();
+migrateSections();
 
 const router = createBrowserRouter([
   {

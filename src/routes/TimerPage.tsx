@@ -9,7 +9,7 @@ type State = 'running' | 'paused' | 'finished';
 export function TimerPage() {
   const navigate = useNavigate();
   const { getRoutine } = useRoutines();
-  const { activeTimer, remainingMs, pauseTimer, resumeTimer, stopTimer } = useTimer();
+  const { activeTimer, remainingMs, pauseTimer, resumeTimer, addMinutes, stopTimer } = useTimer();
 
   // Bounce to home if no active timer (e.g., direct URL access or after stop).
   useEffect(() => {
@@ -84,6 +84,19 @@ export function TimerPage() {
         >
           {mainIcon}
         </button>
+
+        <div className="timer-screen__add">
+          <button type="button" className="timer-screen__add-btn" onClick={() => addMinutes(1)}>
+            +1分
+          </button>
+          <button type="button" className="timer-screen__add-btn" onClick={() => addMinutes(3)}>
+            +3分
+          </button>
+          <button type="button" className="timer-screen__add-btn" onClick={() => addMinutes(5)}>
+            +5分
+          </button>
+        </div>
+
         {state !== 'finished' && (
           <button
             type="button"

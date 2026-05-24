@@ -19,20 +19,24 @@ function getSnapshot(): Routine[] {
   return cachedSnapshot;
 }
 
-export function useRoutines() {
-  const routines = useSyncExternalStore(subscribeStorage, getSnapshot, () => []);
+const EMPTY: Routine[] = [];
 
-  const addRoutine = useCallback((input: RoutineInput): Routine => {
+export function useRoutines() {
+  const routines = useSyncExternalStore(subscribeStorage, getSnapshot, () => EMPTY);
+
+  const addRoutine = useCallback((input: RoutineInput, taskDate?: string): Routine => {
     const routine: Routine = {
       id: generateId(),
       title: input.title.trim(),
       description: input.description.trim(),
       url: input.url.trim(),
       timerSeconds: input.timerSeconds,
+      kind: input.kind,
+      sectionId: input.sectionId,
       createdAt: new Date().toISOString(),
+      ...(input.kind === 'task' && taskDate ? { taskDate } : {}),
     };
-    const next = [...loadRoutines(), routine];
-    writeJSON(STORAGE_KEYS.routines, next);
+    writeJSON(STORAGE_KEYS.routines, [...loadRoutines(), routine]);
     return routine;
   }, []);
 
@@ -45,6 +49,8 @@ export function useRoutines() {
             description: input.description.trim(),
             url: input.url.trim(),
             timerSeconds: input.timerSeconds,
+            kind: input.kind,
+            sectionId: input.sectionId,
           }
         : r
     );
@@ -52,35 +58,54 @@ export function useRoutines() {
   }, []);
 
   const removeRoutine = useCallback((id: string) => {
-    const next = loadRoutines().filter((r) => r.id !== id);
-    writeJSON(STORAGE_KEYS.routines, next);
+    writeJSON(STORAGE_KEYS.routines, loadRoutines().filter((r) => r.id !== id));
   }, []);
 
   const getRoutine = useCallback((id: string): Routine | undefined => {
     return loadRoutines().find((r) => r.id === id);
   }, []);
 
-  const moveRoutine = useCallback((id: string, direction: 'up' | 'down') => {
-    const current = loadRoutines();
-    const idx = current.findIndex((r) => r.id === id);
-    if (idx < 0) return;
-    const target = direction === 'up' ? idx - 1 : idx + 1;
-    if (target < 0 || target >= current.length) return;
-    const next = [...current];
-    [next[idx], next[target]] = [next[target], next[idx]];
-    writeJSON(STORAGE_KEYS.routines, next);
-  }, []);
+  /**
+   * Move `activeId` so it sits where `overId` currently is. If `overSectionId`
+   * is supplied, the moved routine also adopts that section (cross-section DnD).
+   * When `overId` is null, the routine is appended to the end of overSectionId.
+   */
+  const reorderRoutines = useCallback(
+    (activeId: string, overId: string | null, overSectionId?: string) => {
+      const current = loadRoutines();
+      const oldIndex = current.findIndex((r) => r.id === activeId);
+      if (oldIndex < 0) return;
 
-  // Move `activeId` to the position currently occupied by `overId` (DnD).
-  const reorderRoutines = useCallback((activeId: string, overId: string) => {
-    if (activeId === overId) return;
-    const current = loadRoutines();
-    const oldIndex = current.findIndex((r) => r.id === activeId);
-    const newIndex = current.findIndex((r) => r.id === overId);
-    if (oldIndex < 0 || newIndex < 0) return;
-    const next = [...current];
-    const [moved] = next.splice(oldIndex, 1);
-    next.splice(newIndex, 0, moved);
+      const moved = { ...current[oldIndex] };
+      if (overSectionId && moved.sectionId !== overSectionId) {
+        moved.sectionId = overSectionId;
+      }
+
+      const without = current.filter((r) => r.id !== activeId);
+      let insertAt: number;
+      if (overId && overId !== activeId) {
+        const overIndex = without.findIndex((r) => r.id === overId);
+        insertAt = overIndex < 0 ? without.length : overIndex;
+      } else {
+        // append after the last routine of the target section
+        const targetSection = overSectionId ?? moved.sectionId;
+        let lastIdx = -1;
+        without.forEach((r, i) => {
+          if (r.sectionId === targetSection) lastIdx = i;
+        });
+        insertAt = lastIdx + 1;
+      }
+      without.splice(insertAt, 0, moved);
+      writeJSON(STORAGE_KEYS.routines, without);
+    },
+    []
+  );
+
+  /** Move every routine in a removed section to a fallback section. */
+  const reassignSection = useCallback((fromSectionId: string, toSectionId: string) => {
+    const next = loadRoutines().map((r) =>
+      r.sectionId === fromSectionId ? { ...r, sectionId: toSectionId } : r
+    );
     writeJSON(STORAGE_KEYS.routines, next);
   }, []);
 
@@ -90,7 +115,7 @@ export function useRoutines() {
     updateRoutine,
     removeRoutine,
     getRoutine,
-    moveRoutine,
     reorderRoutines,
+    reassignSection,
   };
 }

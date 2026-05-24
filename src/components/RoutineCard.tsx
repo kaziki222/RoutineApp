@@ -1,4 +1,4 @@
-import { Check, GripVertical, Pause, Pencil, Play, X } from 'lucide-react';
+import { Check, GripVertical, Pause, Pencil, Play, SkipForward, X } from 'lucide-react';
 import { type CSSProperties, type HTMLAttributes, type ReactNode, type Ref } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { formatRemaining } from '../hooks/useTimer';
@@ -11,7 +11,9 @@ export type TimerState = 'idle' | 'running' | 'paused' | 'finished';
 type Props = {
   routine: Routine;
   completed: boolean;
+  skipped: boolean;
   onToggleComplete: (id: string) => void;
+  onToggleSkip: (id: string) => void;
   timerState: TimerState;
   timerRemainingMs: number;
   onStartTimer: (id: string, seconds: number) => void;
@@ -27,7 +29,9 @@ type Props = {
 export function RoutineCard({
   routine,
   completed,
+  skipped,
   onToggleComplete,
+  onToggleSkip,
   timerState,
   timerRemainingMs,
   onStartTimer,
@@ -58,11 +62,9 @@ export function RoutineCard({
       }
       return;
     }
-    // Active states (running / paused / finished): jump to dedicated screen.
     navigate('/timer');
   };
 
-  // Icon + time label vary by state
   let stateIcon: ReactNode = null;
   let timeLabel: string | null = null;
   let ariaLabel = '';
@@ -94,7 +96,6 @@ export function RoutineCard({
         : '動画を開く';
   }
 
-  // Progress: ratio of elapsed time to total
   const progressPercent =
     hasTimer && (timerState === 'running' || timerState === 'paused')
       ? Math.max(0, Math.min(100, ((timerSeconds * 1000 - timerRemainingMs) / (timerSeconds * 1000)) * 100))
@@ -147,7 +148,12 @@ export function RoutineCard({
 
       <div className="card__main">
         <header className="card__header">
-          <h2 className="card__title">{routine.title || '(無題のルーティン)'}</h2>
+          <div className="card__title-wrap">
+            <span className={`card__kind card__kind--${routine.kind}`}>
+              {routine.kind === 'routine' ? 'ルーティン' : 'タスク'}
+            </span>
+            <h2 className="card__title">{routine.title || '(無題のルーティン)'}</h2>
+          </div>
           <div className="card__controls">
             <Link
               to={`/edit/${routine.id}`}
@@ -167,11 +173,17 @@ export function RoutineCard({
           </div>
         </header>
 
-        {routine.description && (
-          <p className="card__desc">{routine.description}</p>
-        )}
+        {routine.description && <p className="card__desc">{routine.description}</p>}
 
         <footer className="card__footer">
+          <button
+            type="button"
+            className={`btn-skip${skipped ? ' btn-skip--active' : ''}`}
+            onClick={() => onToggleSkip(routine.id)}
+            aria-pressed={skipped}
+          >
+            スキップ <SkipForward size={13} strokeWidth={2.5} />
+          </button>
           <button
             type="button"
             className={`btn-complete${completed ? ' btn-complete--done' : ''}`}

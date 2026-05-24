@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
+import { useSections } from '../hooks/useSections';
 import { isSafeHttpUrl } from '../lib/youtube';
-import type { RoutineInput } from '../types';
+import type { RoutineInput, RoutineKind } from '../types';
 
 type Props = {
   defaultValues?: Partial<RoutineInput>;
@@ -8,6 +9,7 @@ type Props = {
   onSubmit: (input: RoutineInput) => void;
   onCancel?: () => void;
   onDelete?: () => void;
+  lockKind?: boolean; // hide kind toggle (e.g. editing existing)
 };
 
 export function RoutineForm({
@@ -16,11 +18,17 @@ export function RoutineForm({
   onSubmit,
   onCancel,
   onDelete,
+  lockKind,
 }: Props) {
+  const { sections } = useSections();
   const initialTimerSeconds = defaultValues?.timerSeconds ?? 0;
   const [title, setTitle] = useState(defaultValues?.title ?? '');
   const [description, setDescription] = useState(defaultValues?.description ?? '');
   const [url, setUrl] = useState(defaultValues?.url ?? '');
+  const [kind, setKind] = useState<RoutineKind>(defaultValues?.kind ?? 'routine');
+  const [sectionId, setSectionId] = useState<string>(
+    defaultValues?.sectionId ?? sections[0]?.id ?? ''
+  );
   const [timerMinutes, setTimerMinutes] = useState<string>(
     initialTimerSeconds > 0 ? String(Math.floor(initialTimerSeconds / 60)) : ''
   );
@@ -55,11 +63,53 @@ export function RoutineForm({
       description: description.trim(),
       url: trimmedUrl,
       timerSeconds: totalSeconds,
+      kind,
+      sectionId: sectionId || sections[0]?.id || '',
     });
   };
 
   return (
     <form className="form" onSubmit={handleSubmit} noValidate>
+      {!lockKind && (
+        <fieldset className="form__field form__kind">
+          <legend className="form__label">種類</legend>
+          <div className="seg">
+            <button
+              type="button"
+              className={`seg__btn${kind === 'routine' ? ' seg__btn--active' : ''}`}
+              onClick={() => setKind('routine')}
+            >
+              ルーティン
+            </button>
+            <button
+              type="button"
+              className={`seg__btn${kind === 'task' ? ' seg__btn--active' : ''}`}
+              onClick={() => setKind('task')}
+            >
+              タスク
+            </button>
+          </div>
+          <p className="form__hint">
+            {kind === 'routine' ? '毎日くり返し表示されます' : 'その日だけのタスクです'}
+          </p>
+        </fieldset>
+      )}
+
+      <label className="form__field">
+        <span className="form__label">セクション</span>
+        <select
+          className="form__input"
+          value={sectionId}
+          onChange={(e) => setSectionId(e.target.value)}
+        >
+          {sections.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.title}
+            </option>
+          ))}
+        </select>
+      </label>
+
       <label className="form__field">
         <span className="form__label">タイトル</span>
         <input
@@ -130,7 +180,7 @@ export function RoutineForm({
             <span className="form__timer-unit">秒</span>
           </label>
         </div>
-        <p className="form__hint">設定するとカードに「開始」ボタンが出ます</p>
+        <p className="form__hint">設定するとサムネイルがタイマーになります</p>
       </fieldset>
 
       {error && <p className="form__error" role="alert">{error}</p>}

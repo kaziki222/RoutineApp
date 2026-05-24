@@ -6,7 +6,9 @@ import type { Routine } from '../types';
 type Props = {
   routine: Routine;
   completed: boolean;
+  skipped: boolean;
   onToggleComplete: (id: string) => void;
+  onToggleSkip: (id: string) => void;
   timerState: TimerState;
   timerRemainingMs: number;
   onStartTimer: (id: string, seconds: number) => void;

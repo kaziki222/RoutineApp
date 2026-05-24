@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { todayKey } from '../lib/date';
+import { readJSON, STORAGE_KEYS, subscribeStorage, writeJSON } from '../lib/storage';
+import type { TimerOverrides } from '../types';
 
 const TIMER_KEY = 'routine-app:activeTimer';
 
@@ -6,6 +9,7 @@ type StoredTimer = {
   routineId: string;
   endsAt: number; // Date.now() ms target end. Stale when paused.
   totalSeconds: number;
+  startDate: string; // YYYY-MM-DD the timer was started (for per-day override)
   pausedRemainingMs?: number; // present => paused; ms remaining at pause moment
 };
 
@@ -23,7 +27,7 @@ function loadStoredTimer(): StoredTimer | null {
       typeof parsed?.endsAt === 'number' &&
       typeof parsed?.totalSeconds === 'number'
     ) {
-      return parsed;
+      return { ...parsed, startDate: parsed.startDate ?? todayKey() };
     }
   } catch {
     // ignore
@@ -40,17 +44,35 @@ function persistStoredTimer(t: StoredTimer | null): void {
   }
 }
 
+function loadOverrides(): TimerOverrides {
+  const data = readJSON<TimerOverrides>(STORAGE_KEYS.timerOverrides, {});
+  return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+}
+
+function writeOverride(date: string, routineId: string, seconds: number) {
+  const current = loadOverrides();
+  const day = { ...(current[date] ?? {}), [routineId]: seconds };
+  writeJSON(STORAGE_KEYS.timerOverrides, { ...current, [date]: day });
+}
+
+let overridesCache: TimerOverrides = loadOverrides();
+let overridesRaw: string | null = JSON.stringify(overridesCache);
+function getOverridesSnapshot(): TimerOverrides {
+  const raw = window.localStorage.getItem(STORAGE_KEYS.timerOverrides);
+  if (raw === overridesRaw) return overridesCache;
+  overridesRaw = raw;
+  overridesCache = loadOverrides();
+  return overridesCache;
+}
+
 export function useTimer() {
   const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>(() => {
     const stored = loadStoredTimer();
     if (!stored) return null;
     const now = Date.now();
     const isPaused = typeof stored.pausedRemainingMs === 'number';
-    if (isPaused) {
-      return { ...stored, finished: false };
-    }
+    if (isPaused) return { ...stored, finished: false };
     const finished = stored.endsAt <= now;
-    // Clear stale finished timer (>1 min after end) on boot.
     if (finished && now - stored.endsAt > 60_000) {
       persistStoredTimer(null);
       return null;
@@ -65,6 +87,11 @@ export function useTimer() {
     return Math.max(0, stored.endsAt - Date.now());
   });
 
+  const overrides = useSyncExternalStore(
+    subscribeStorage,
+    getOverridesSnapshot,
+    getOverridesSnapshot
+  );
   const alarmFiredRef = useRef(false);
 
   useEffect(() => {
@@ -73,7 +100,6 @@ export function useTimer() {
       alarmFiredRef.current = false;
       return;
     }
-    // Paused: hold the remaining value and don't tick.
     if (typeof activeTimer.pausedRemainingMs === 'number') {
       setRemainingMs(activeTimer.pausedRemainingMs);
       return;
@@ -106,6 +132,7 @@ export function useTimer() {
       routineId,
       endsAt: Date.now() + seconds * 1000,
       totalSeconds: seconds,
+      startDate: todayKey(),
     };
     persistStoredTimer(next);
     alarmFiredRef.current = false;
@@ -116,13 +143,14 @@ export function useTimer() {
   const pauseTimer = useCallback(() => {
     setActiveTimer((prev) => {
       if (!prev || prev.finished) return prev;
-      if (typeof prev.pausedRemainingMs === 'number') return prev; // already paused
+      if (typeof prev.pausedRemainingMs === 'number') return prev;
       const remaining = Math.max(0, prev.endsAt - Date.now());
       const next: ActiveTimer = { ...prev, pausedRemainingMs: remaining };
       persistStoredTimer({
         routineId: next.routineId,
         endsAt: next.endsAt,
         totalSeconds: next.totalSeconds,
+        startDate: next.startDate,
         pausedRemainingMs: remaining,
       });
       setRemainingMs(remaining);
@@ -133,19 +161,54 @@ export function useTimer() {
   const resumeTimer = useCallback(() => {
     setActiveTimer((prev) => {
       if (!prev || prev.finished) return prev;
-      if (typeof prev.pausedRemainingMs !== 'number') return prev; // not paused
+      if (typeof prev.pausedRemainingMs !== 'number') return prev;
       const remaining = prev.pausedRemainingMs;
       const newEndsAt = Date.now() + remaining;
-      const next: ActiveTimer = {
-        ...prev,
-        endsAt: newEndsAt,
-        pausedRemainingMs: undefined,
-      };
+      const next: ActiveTimer = { ...prev, endsAt: newEndsAt, pausedRemainingMs: undefined };
       persistStoredTimer({
         routineId: next.routineId,
         endsAt: newEndsAt,
         totalSeconds: next.totalSeconds,
+        startDate: next.startDate,
       });
+      return next;
+    });
+  }, []);
+
+  const addMinutes = useCallback((minutes: number) => {
+    const addMs = minutes * 60 * 1000;
+    setActiveTimer((prev) => {
+      if (!prev) return prev;
+      const isPaused = typeof prev.pausedRemainingMs === 'number';
+      const newTotal = prev.totalSeconds + minutes * 60;
+      let next: ActiveTimer;
+      if (isPaused) {
+        const newRemaining = (prev.pausedRemainingMs ?? 0) + addMs;
+        next = { ...prev, totalSeconds: newTotal, pausedRemainingMs: newRemaining, finished: false };
+        setRemainingMs(newRemaining);
+        persistStoredTimer({
+          routineId: next.routineId,
+          endsAt: next.endsAt,
+          totalSeconds: newTotal,
+          startDate: next.startDate,
+          pausedRemainingMs: newRemaining,
+        });
+      } else {
+        // base the new end on whichever is later: now (if finished) or current endsAt
+        const base = prev.finished ? Date.now() : prev.endsAt;
+        const newEndsAt = base + addMs;
+        next = { ...prev, totalSeconds: newTotal, endsAt: newEndsAt, finished: false };
+        alarmFiredRef.current = false;
+        setRemainingMs(Math.max(0, newEndsAt - Date.now()));
+        persistStoredTimer({
+          routineId: next.routineId,
+          endsAt: newEndsAt,
+          totalSeconds: newTotal,
+          startDate: next.startDate,
+        });
+      }
+      // record per-day total used for this routine
+      writeOverride(next.startDate, next.routineId, newTotal);
       return next;
     });
   }, []);
@@ -157,7 +220,25 @@ export function useTimer() {
     alarmFiredRef.current = false;
   }, []);
 
-  return { activeTimer, remainingMs, startTimer, pauseTimer, resumeTimer, stopTimer };
+  return {
+    activeTimer,
+    remainingMs,
+    overrides,
+    startTimer,
+    pauseTimer,
+    resumeTimer,
+    addMinutes,
+    stopTimer,
+  };
+}
+
+export function effectiveTimerSeconds(
+  overrides: TimerOverrides,
+  date: string,
+  routineId: string,
+  baseSeconds: number
+): number {
+  return overrides[date]?.[routineId] ?? baseSeconds;
 }
 
 export function formatRemaining(ms: number): string {

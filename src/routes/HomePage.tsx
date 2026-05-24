@@ -13,16 +13,18 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { Plus } from 'lucide-react';
+import { FolderPlus, ListPlus, Plus, X } from 'lucide-react';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { type TimerState } from '../components/RoutineCard';
+import { useNavigate } from 'react-router-dom';
+import { SectionBlock } from '../components/SectionBlock';
 import { SortableRoutineCard } from '../components/SortableRoutineCard';
 import { WeekSchedule } from '../components/WeekSchedule';
-import { useHistory } from '../hooks/useHistory';
+import { computeDayRate, useHistory } from '../hooks/useHistory';
 import { useRoutines } from '../hooks/useRoutines';
-import { useTimer } from '../hooks/useTimer';
+import { useSections } from '../hooks/useSections';
+import { effectiveTimerSeconds, useTimer } from '../hooks/useTimer';
 import { todayKey } from '../lib/date';
+import type { TimerState } from '../components/RoutineCard';
 
 function formatJP(date: string): string {
   const [, m, d] = date.split('-');
@@ -30,34 +32,54 @@ function formatJP(date: string): string {
 }
 
 export function HomePage() {
+  const navigate = useNavigate();
   const { routines, reorderRoutines } = useRoutines();
-  const { history, toggleComplete } = useHistory();
-  const { activeTimer, remainingMs, startTimer, stopTimer } = useTimer();
+  const { sections, addSection, updateSection } = useSections();
+  const { history, toggleComplete, toggleSkip, isCompleted, isSkipped } = useHistory();
+  const { activeTimer, remainingMs, overrides, startTimer, stopTimer } = useTimer();
   const [selectedDate, setSelectedDate] = useState<string>(todayKey());
+  const [fabOpen, setFabOpen] = useState(false);
 
   const today = todayKey();
   const isToday = selectedDate === today;
   const isFuture = selectedDate > today;
-  const completedSet = new Set(history[selectedDate] ?? []);
+
+  // Visible items for the selected date: routines always, tasks only on their day.
+  const visible = routines.filter(
+    (r) => r.kind === 'routine' || (r.kind === 'task' && r.taskDate === selectedDate)
+  );
+  const visibleIds = visible.map((r) => r.id);
+  const rate = computeDayRate(history, selectedDate, visibleIds);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      // require a small drag distance before activating so card buttons stay tappable
-      activationConstraint: { distance: 5 },
-    }),
-    useSensor(TouchSensor, {
-      // long-press lightly to grab on touch devices; lets normal taps through
-      activationConstraint: { delay: 180, tolerance: 5 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    reorderRoutines(String(active.id), String(over.id));
+    if (!over) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (overId.startsWith('section:')) {
+      reorderRoutines(activeId, null, overId.slice('section:'.length));
+    } else if (activeId !== overId) {
+      const overRoutine = routines.find((r) => r.id === overId);
+      reorderRoutines(activeId, overId, overRoutine?.sectionId);
+    }
+  };
+
+  const handleAddSection = () => {
+    setFabOpen(false);
+    const title = window.prompt('セクション名を入力');
+    if (title && title.trim()) addSection(title.trim());
+  };
+
+  const timerStateFor = (id: string): TimerState => {
+    if (activeTimer?.routineId !== id) return 'idle';
+    if (activeTimer.finished) return 'finished';
+    return typeof activeTimer.pausedRemainingMs === 'number' ? 'paused' : 'running';
   };
 
   return (
@@ -65,11 +87,19 @@ export function HomePage() {
       <h1 className="page__title">My Routine</h1>
       <WeekSchedule selectedDate={selectedDate} onSelectDate={setSelectedDate} />
 
+      <div className="day-rate">
+        <span className="day-rate__label">
+          {isToday ? '今日' : formatJP(selectedDate)}の達成率
+        </span>
+        <span className="day-rate__value">{rate.percent}%</span>
+        <span className="day-rate__count">
+          {rate.completed}/{rate.total}
+        </span>
+      </div>
+
       {!isToday && (
         <div className={`date-banner${isFuture ? ' date-banner--future' : ''}`}>
-          <span>
-            {formatJP(selectedDate)} を{isFuture ? '表示中（未来日は記録不可）' : '表示中'}
-          </span>
+          <span>{formatJP(selectedDate)} を表示中{isFuture ? '（未来日は記録不可）' : ''}</span>
           <button
             type="button"
             className="date-banner__reset"
@@ -80,59 +110,96 @@ export function HomePage() {
         </div>
       )}
 
-      {routines.length === 0 ? (
-        <div className="empty">
-          <p>＋ボタンからルーティンを追加しましょう</p>
-        </div>
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={routines.map((r) => r.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <ul className="card-list">
-              {routines.map((r) => {
-                const isActiveTarget = activeTimer?.routineId === r.id;
-                const isPaused =
-                  isActiveTarget && typeof activeTimer?.pausedRemainingMs === 'number';
-                const timerState: TimerState = !isActiveTarget
-                  ? 'idle'
-                  : activeTimer?.finished
-                    ? 'finished'
-                    : isPaused
-                      ? 'paused'
-                      : 'running';
-                return (
-                  <li key={r.id}>
-                    <SortableRoutineCard
-                      routine={r}
-                      completed={completedSet.has(r.id)}
-                      onToggleComplete={(id) => {
-                        if (isFuture) return;
-                        toggleComplete(selectedDate, id);
-                      }}
-                      timerState={timerState}
-                      timerRemainingMs={
-                        isActiveTarget ? remainingMs : (r.timerSeconds ?? 0) * 1000
-                      }
-                      onStartTimer={startTimer}
-                      onStopTimer={stopTimer}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          </SortableContext>
-        </DndContext>
-      )}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        {sections.map((section) => {
+          const cards = visible.filter((r) => r.sectionId === section.id);
+          return (
+            <SectionBlock
+              key={section.id}
+              section={section}
+              count={cards.length}
+              onRename={updateSection}
+            >
+              <SortableContext
+                items={cards.map((c) => c.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <ul className="card-list">
+                  {cards.map((r) => {
+                    const state = timerStateFor(r.id);
+                    const baseSeconds = r.timerSeconds ?? 0;
+                    const effSeconds = effectiveTimerSeconds(
+                      overrides,
+                      selectedDate,
+                      r.id,
+                      baseSeconds
+                    );
+                    const isActiveTarget = activeTimer?.routineId === r.id;
+                    return (
+                      <li key={r.id}>
+                        <SortableRoutineCard
+                          routine={{ ...r, timerSeconds: effSeconds }}
+                          completed={isCompleted(selectedDate, r.id)}
+                          skipped={isSkipped(selectedDate, r.id)}
+                          onToggleComplete={(id) => {
+                            if (isFuture) return;
+                            toggleComplete(selectedDate, id);
+                          }}
+                          onToggleSkip={(id) => {
+                            if (isFuture) return;
+                            toggleSkip(selectedDate, id);
+                          }}
+                          timerState={state}
+                          timerRemainingMs={isActiveTarget ? remainingMs : effSeconds * 1000}
+                          onStartTimer={startTimer}
+                          onStopTimer={stopTimer}
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+              </SortableContext>
+            </SectionBlock>
+          );
+        })}
+      </DndContext>
 
-      <Link to="/add" className="fab" aria-label="ルーティンを追加">
-        <Plus size={28} strokeWidth={2.5} />
-      </Link>
+      {fabOpen && (
+        <button
+          type="button"
+          className="fab-backdrop"
+          aria-label="メニューを閉じる"
+          onClick={() => setFabOpen(false)}
+        />
+      )}
+      <div className="fab-wrap">
+        {fabOpen && (
+          <div className="fab-menu" role="menu">
+            <button
+              type="button"
+              className="fab-menu__item"
+              onClick={() => {
+                setFabOpen(false);
+                navigate(`/add?date=${selectedDate}`);
+              }}
+            >
+              <ListPlus size={18} /> ルーティン / タスクを追加
+            </button>
+            <button type="button" className="fab-menu__item" onClick={handleAddSection}>
+              <FolderPlus size={18} /> セクションを追加
+            </button>
+          </div>
+        )}
+        <button
+          type="button"
+          className={`fab${fabOpen ? ' fab--open' : ''}`}
+          aria-label={fabOpen ? 'メニューを閉じる' : '追加メニューを開く'}
+          aria-expanded={fabOpen}
+          onClick={() => setFabOpen((v) => !v)}
+        >
+          {fabOpen ? <X size={28} strokeWidth={2.5} /> : <Plus size={28} strokeWidth={2.5} />}
+        </button>
+      </div>
     </div>
   );
 }
